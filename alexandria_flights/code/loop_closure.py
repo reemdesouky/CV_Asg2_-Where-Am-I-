@@ -29,7 +29,14 @@ def revisits(F, every=3, gap=30, min_inliers=40):
         # Try every keyframe i at least `gap` frames before j: estimate(F[i], F[j], 'similarity').
         # Accept the pair when estimate() returns a transform with at least min_inliers inliers, and keep in
         # `best` the accepted (i, j, H, n_inliers) with the most inliers.
-        raise NotImplementedError('TODO 4.1 in loop_closure.py, revisits(): the best partner of keyframe j')
+
+        for i in keyframes:
+            if i > j - gap:                       # i must be at least `gap` frames before j
+                break                             # keyframes are sorted, so every later i is too close as well
+            H, n, _ = estimate(F[i], F[j], 'similarity')   # Part 2: match + RANSAC, H takes frame i -> frame j
+            if H is not None and n >= min_inliers and (best is None or n > best[3]):
+                best = (i, j, H, n)               # accepted, and more inliers than j's best partner so far
+                
         # ------------------------------------------------------------ end TODO -----
         if best is not None:
             found.append(best)
@@ -62,7 +69,13 @@ def measurement_rows(k, l, H, N, corners):
         # Write T_k(p) = T_l(H(p)) at p = (x, y) as two equations, one for each coordinate. Move everything
         # to one side, so that each reads row . z = 0, and write the coefficients into rx and ry, in the
         # columns of frames k and l.
-        raise NotImplementedError('TODO 4.2 in loop_closure.py, measurement_rows(): the coefficients')
+        #raise NotImplementedError('TODO 4.2 in loop_closure.py, measurement_rows(): the coefficients')
+        # x equation:  (a_k x - b_k y + tx_k) - (a_l u - b_l v + tx_l) = 0
+        rx[4 * k:4 * k + 4] = [x, -y, 1, 0]
+        rx[4 * l:4 * l + 4] = [-u, v, -1, 0]
+        # y equation:  (b_k x + a_k y + ty_k) - (b_l u + a_l v + ty_l) = 0
+        ry[4 * k:4 * k + 4] = [y, x, 0, 1]
+        ry[4 * l:4 * l + 4] = [-v, -u, 0, -1]
         # ------------------------------------------------------------ end TODO -----
     return rows
 
