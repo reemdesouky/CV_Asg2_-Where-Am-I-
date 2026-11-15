@@ -11,7 +11,7 @@ from features import match
 # ===================================================================== Q2.1 fitting
 def fit_similarity(p, q):
     """Least-squares similarity (rotation, uniform scale, translation) taking p to q:
-    x' = a x - b y + tx,  y' = b x + a y + ty.
+    x' = a x - b y + tx,  y' = b x + a y + ty. if M = TRS
 
     Args:
         p: (N, 2) points, N >= 2.
@@ -21,13 +21,29 @@ def fit_similarity(p, q):
         (3, 3) transform [[a, -b, tx], [b, a, ty], [0, 0, 1]].
     """
     n = len(p)
+    # A = 2 equations for each point * 4
     A, rhs = np.zeros((2 * n, 4)), np.zeros(2 * n)       # unknowns (a, b, tx, ty)
     # ---------------------------------------------------------------- TODO 2.1a ----
     # Fill A and rhs: two rows per match, one for x' and one for y'.
-    raise NotImplementedError('TODO 2.1a in fitting.py, fit_similarity(): build A and rhs')
+    x, y = p[:, 0], p[:, 1]
+    one, zero = np.ones(n), np.zeros(n)
+    A[0::2] = np.c_[x, -y, one, zero]      # x' = a*x - b*y + 1*tx + 0*ty
+    A[1::2] = np.c_[y,  x, zero, one]      # y' = a*y + b*x + 0*tx + 1*ty
+    rhs[0::2] = q[:, 0]
+    rhs[1::2] = q[:, 1]
     # ---------------------------------------------------------------- end TODO -----
     a, b, tx, ty = np.linalg.lstsq(A, rhs, rcond=None)[0]
     return np.array([[a, -b, tx], [b, a, ty], [0, 0, 1.0]])
+
+
+def hartley(pts):
+    """(3, 3) similarity transformation moving pts to zero mean and an average distance of sqrt(2) from the origin(0,0)."""
+    c = pts.mean(axis=0)                                   # centroid
+    d = np.linalg.norm(pts - c, axis=1).mean()             # average distance to the centroid
+    s = np.sqrt(2) / max(d, 1e-12)                         # scale so that the average distance becomes sqrt(2), take max between d and 1e-12 to  make sure don't divide by zero
+    return np.array([[s, 0, -s * c[0]],                    # x_n = s * (x - cx)
+                     [0, s, -s * c[1]],                    # y_n = s * (y - cy)
+                     [0, 0, 1.0]])
 
 
 def fit_homography(p, q, normalize=True):
@@ -46,13 +62,23 @@ def fit_homography(p, q, normalize=True):
         # ------------------------------------------------------------ TODO 2.1b ----
         # Tp, Tq: (3, 3) similarities that move each point set to zero mean and an average distance of
         # sqrt(2) from the origin (Hartley, 1997).
-        raise NotImplementedError('TODO 2.1b in fitting.py, fit_homography(): Hartley normalization')
+        Tp, Tq = hartley(p), hartley(q)
         # ------------------------------------------------------------ end TODO -----
     pn, qn = apply(Tp, p), apply(Tq, q)
     # ---------------------------------------------------------------- TODO 2.1c ----
     # Hn: the homography taking pn to qn. Build the 2N x 9 DLT matrix (two rows per match), take the right
     # singular vector of its smallest singular value (np.linalg.svd), and reshape it to 3 x 3.
-    raise NotImplementedError('TODO 2.1c in fitting.py, fit_homography(): the DLT')
+    n = len(pn)
+    x, y = pn[:, 0], pn[:, 1]
+    u, v = qn[:, 0], qn[:, 1]
+    one, zero = np.ones(n), np.zeros(n)
+    A = np.zeros((2 * n, 9))
+    # From u = (h1.p)/(h3.p) and v = (h2.p)/(h3.p), with p = (x, y, 1):
+    #   h1.p - u * h3.p = 0   and   h2.p - v * h3.p = 0   (signs flipped below, same equations)
+    A[0::2] = np.c_[-x, -y, -one, zero, zero, zero, u * x, u * y, u]
+    A[1::2] = np.c_[zero, zero, zero, -x, -y, -one, v * x, v * y, v]
+    _, _, Vt = np.linalg.svd(A)
+    Hn = Vt[-1].reshape(3, 3)        # rows of Vt are the right singular vectors, smallest singular value last
     # ---------------------------------------------------------------- end TODO -----
     H = np.linalg.inv(Tq) @ Hn @ Tp                       # undo the normalization
     return H / H[2, 2]
@@ -116,7 +142,17 @@ def ransac(p, q, fit, sample, thresh=3.0, p_success=0.99, max_iter=5000, seed=0)
         # If there are more of them than in best_inliers (and at least `sample`), keep them in best_inliers,
         # and set `needed`, the total number of iterations, with the formula of Lecture 8 for the new inlier
         # ratio and p_success.
-        raise NotImplementedError('TODO 2.2 in fitting.py, ransac(): score the hypothesis')
+        err = np.linalg.norm(apply(T, p) - q, axis=1)     # reprojection error of every match, in pixels
+        inliers = err < thresh                            # NaN errors compare False, so they are outliers
+        k = int(inliers.sum())
+        if k >= sample and (best_inliers is None or k > best_inliers.sum()):
+            best_inliers = inliers
+            w = k / n                                     # inlier ratio
+            all_in = w ** sample                          # chance that one random sample is all inliers
+            if all_in >= 1 - 1e-12:                       # every match is an inlier: no more iterations needed
+                needed = it
+            else:                                         # N = log(1 - p) / log(1 - w^s)
+                needed = int(np.ceil(np.log(1 - p_success) / np.log(1 - all_in)))
         # ------------------------------------------------------------ end TODO -----
     if best_inliers is None:
         return None, None, it
