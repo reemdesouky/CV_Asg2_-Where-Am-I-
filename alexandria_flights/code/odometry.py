@@ -29,6 +29,17 @@ def chain(F, model='similarity', min_inliers=15):
         # A step is lost when H is None or n < min_inliers: record k - 1 in `lost`, None in `steps` and 0 in
         # `n_inliers`, and use `last` as its motion. Otherwise record H and n, and remember H in `last`.
         # Then append T_k = T_{k-1} M^-1 to T, where M is the step's motion: H, or `last` for a lost step.
-        raise NotImplementedError('TODO 3.1 in odometry.py, chain(): one step of the chain')
+        if H is None or n < min_inliers:          # lost step: reuse the last good motion
+                lost.append(k - 1)
+                steps.append(None)
+                n_inliers.append(0)
+                M = last
+        else:
+                steps.append(H)
+                n_inliers.append(n)
+                last = H
+                M = H
+        Tk = T[-1] @ np.linalg.inv(M)             # T_k = T_{k-1} M^-1
+        T.append(Tk / Tk[2, 2])
         # ------------------------------------------------------------ end TODO -----
     return T, steps, lost, n_inliers

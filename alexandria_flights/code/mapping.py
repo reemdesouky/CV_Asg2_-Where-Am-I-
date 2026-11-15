@@ -88,7 +88,8 @@ def make_map(imgs, Ts, scale=1.0):
         # ------------------------------------------------------------ TODO 3.3 -----
         # Warp frame k onto the (W, H) canvas with cv2.warpPerspective. T takes it to frame 0 and S takes
         # frame 0 to the map. Then hand it to the blender: blender.feed(warped.astype(np.int16), mask, (0, 0)).
-        raise NotImplementedError('TODO 3.3 in mapping.py, make_map(): warp each frame onto the canvas')
+        warped = cv2.warpPerspective(img, S @ T, (W, H))   # frame k -> frame 0 (T) -> map (S)
+        blender.feed(warped.astype(np.int16), mask, (0, 0))
         # ------------------------------------------------------------ end TODO -----
     out, _ = blender.blend(None, None)
     out = np.clip(out, 0, 255).astype(np.uint8)

@@ -10,7 +10,7 @@ import os
 import numpy as np
 import utils, gt
 from features import features, match
-from fitting import fit_similarity, fit_homography, ransac
+from alexandria_flights.code.fitting import fit_similarity, fit_homography, ransac
 
 
 def main():

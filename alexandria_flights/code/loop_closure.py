@@ -5,7 +5,7 @@ Check your work with:  python check.py 4.1   and   python check.py 4.2
 """
 import numpy as np, cv2
 from utils import apply
-from fitting import estimate
+from alexandria_flights.code.fitting import estimate
 
 
 # ===================================================================== Q4.1 revisits
